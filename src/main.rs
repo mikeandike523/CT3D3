@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use sdl2::mouse::MouseButton;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -17,6 +18,11 @@ mod application;
 
 mod kernels{
     pub mod render;
+}
+
+mod kernel_helpers {
+    pub mod color;
+    pub mod math;
 }
 
 const SCREEN_WIDTH: u32 = 640;
@@ -63,6 +69,29 @@ fn main() {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'running
                 },
+                Event::MouseButtonDown {
+                    mouse_btn: MouseButton::Right,
+                    x,
+                    y,
+                    ..
+                } =>{
+                    crate::application::rmb_down(x, y, &mut application_state).unwrap();
+                },
+                Event::MouseButtonUp {
+                    mouse_btn: MouseButton::Right,
+                    x,
+                    y,
+                    ..
+                } =>{
+                    crate::application::rmb_up(x, y, &mut application_state).unwrap();
+                }
+                Event::MouseMotion {
+                    x,
+                    y,
+                    ..
+                } => {
+                    crate::application::mouse_move(x, y, &mut application_state).unwrap();
+                }
                 _ => {}
             }
         }

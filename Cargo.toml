@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 sdl2 = "0.35.2"
 ocl = "0.19.4"
+glam = "0.22.0"

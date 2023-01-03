@@ -1,4 +1,40 @@
-pub const RENDER: &str = r#"
+
+
+typedef struct Color {
+    float r;
+    float g;
+    float b;
+} Color;
+
+Color color_new(float r, float g, float b){
+    Color c;
+    c.r = r;
+    c.g = g;
+    c.b = b;
+    return c;
+}
+
+Color color_from_float3(float3 f3){
+    return color_new(f3.x, f3.y, f3.z);
+}
+
+
+
+// float3 operations
+float3 float3_scaled_by(float3 f3, float s){
+    return (float3)(f3.x*s, f3.y*s, f3.z*s);
+}
+
+// general numeric operations
+float min3(float a, float b, float c){
+    return min(a, min(b, c));
+}
+
+float max3(float a, float b, float c){
+    return max(a, max(b, c));
+}
+
+
 
     #define CAMERA_Z -10.0
     #define F 1.0
@@ -143,4 +179,3 @@ pub const RENDER: &str = r#"
 
     }
 
-"#;
