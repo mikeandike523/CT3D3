@@ -4,13 +4,20 @@ use std::time::Duration;
 use std::fs::File;
 
 use ocl::{flags, Platform, Device, Context, Queue, CommandQueueProperties, Buffer, Program, Kernel, SpatialDims};
-
+use glam::{Vec3, Quat};
 use crate::types::ct3d_error::CT3DError;
 use crate::types::application_state::ApplicationState;
+use crate::types::volume::Volume;
 
 const INPUT_DATA_BUFFER_SIZE_BYTES: u32 = 1024*1024*512; // 0.5 GB of Storage
-const DRAG_RADIANS_PER_SCREEN_X: f32=2.0*2.0*(std::f64::consts::PI as f32);
-const DRAG_RADIANS_PER_SCREEN_Y: f32=2.0*2.0*(std::f64::consts::PI as f32);
+const DRAG_RADIANS_PER_SCREEN_X: f32=1.0*2.0*(std::f64::consts::PI as f32); // One rotation per half screen
+const DRAG_RADIANS_PER_SCREEN_Y: f32=1.0*2.0*(std::f64::consts::PI as f32); // One rotation per half screen
+const MIN_CAMERA_Z: f32 = -10.0;
+const MAX_CAMERA_Z: f32 = -0.75;
+const ZOOM_SPEED: f32 = 0.25;
+const LOCAL_SIZE: usize = 64;
+
+
 pub fn init(application_state: &mut ApplicationState ) -> Result<(), CT3DError>{
     let platform = Platform::default();
     // Query for devices of type GPU
@@ -62,6 +69,14 @@ pub fn init(application_state: &mut ApplicationState ) -> Result<(), CT3DError>{
         .unwrap()
     );
 
+    application_state.opencl_state.general_parameters_buffer = Some(Buffer::builder()
+    .queue(application_state.opencl_state.queue.as_ref().unwrap().clone())
+    .flags(ocl::core::MEM_READ_ONLY)
+    .len(1) // Remember to update if new parameters are added
+    .build()
+    .unwrap()
+    );
+
     application_state.opencl_state.axes_buffer = Some(Buffer::builder()
     .queue(application_state.opencl_state.queue.as_ref().unwrap().clone())
     .flags(ocl::core::MEM_READ_ONLY)
@@ -73,6 +88,7 @@ pub fn init(application_state: &mut ApplicationState ) -> Result<(), CT3DError>{
     let source_code =
     crate::kernel_helpers::color::COLOR.to_owned() +
     &crate::kernel_helpers::math::MATH.to_owned() +
+    &crate::kernel_helpers::raycasting::RAYCASTING.to_owned() +
     &crate::kernels::render::RENDER.to_owned();
 
     File::create("debug/kernel_source.cl").unwrap().write(source_code.as_bytes()).unwrap();
@@ -91,13 +107,21 @@ pub fn init(application_state: &mut ApplicationState ) -> Result<(), CT3DError>{
         .arg(application_state.opencl_state.output_buffer.as_ref().unwrap())
         .arg(application_state.opencl_state.input_data_buffer.as_ref().unwrap())
         .arg(application_state.opencl_state.axes_buffer.as_ref().unwrap())
+        .arg(application_state.opencl_state.general_parameters_buffer.as_ref().unwrap())
         .name("render")
         .build()
         .unwrap()
     );
 
+    change_volume(application_state, Box::new(crate::content::generate_initial_volume::generate_initial_volume()));
+
     Ok(())
 
+}
+
+pub fn change_volume(application_state: &mut ApplicationState, volume: Box<Volume>){
+    application_state.volume = Some(volume);
+    application_state.volume.as_ref().unwrap().as_ref().to_ocl_buffer(application_state.opencl_state.input_data_buffer.as_mut().unwrap())
 }
 
 pub fn main(application_state: &mut ApplicationState, delta_time: Duration) -> Result<(), CT3DError>{
@@ -105,6 +129,10 @@ pub fn main(application_state: &mut ApplicationState, delta_time: Duration) -> R
     let screen_dimensions_vec = vec![application_state.width as i32, application_state.height as i32];
 
     application_state.opencl_state.screen_dimensions_buffer.as_mut().unwrap().write(&screen_dimensions_vec).enq().unwrap();
+
+    let general_parameters_vec =vec![application_state.camera_z];
+
+    application_state.opencl_state.general_parameters_buffer.as_mut().unwrap().write(&general_parameters_vec).enq().unwrap();
 
     let mut axes_vec = vec![0.0; 9];
     axes_vec[0*3+0] = application_state.RIGHT.x;
@@ -123,7 +151,7 @@ pub fn main(application_state: &mut ApplicationState, delta_time: Duration) -> R
 
     unsafe {
         let kernel = application_state.opencl_state.kernel.as_mut().unwrap();
-        kernel.set_default_global_work_size(SpatialDims::One(work_size as usize)).set_default_local_work_size(SpatialDims::One(1usize)).enq().unwrap();
+        kernel.set_default_global_work_size(SpatialDims::One(work_size as usize)).set_default_local_work_size(SpatialDims::One(LOCAL_SIZE)).enq().unwrap();
     }
 
     application_state.screen_buffer.extract_from_buffer(&application_state.opencl_state.output_buffer.as_ref().unwrap())?;
@@ -152,13 +180,48 @@ pub fn rmb_down(x: i32, y: i32, application_state: &mut ApplicationState) -> Res
 pub fn rmb_up(x: i32, y: i32, application_state: &mut ApplicationState) -> Result<(), CT3DError> {
 
     application_state.drag_state.dragging = false;
+
     Ok(())
 }
 pub fn mouse_move(x: i32, y: i32, application_state: &mut ApplicationState) -> Result<(), CT3DError> {
 
     if(application_state.drag_state.dragging){
         
+        let dx = x - application_state.drag_state.init_x;
+        let dy = y - application_state.drag_state.init_y;
+        // application_state.drag_state.init_x = x;
+        // application_state.drag_state.init_y = y;
+    
+        let fraction_dx = (dx as f32) /(application_state.width as f32);
+        let fraction_dy = (dy as f32) /(application_state.height as f32);
+    
+        let mut dx_radians = DRAG_RADIANS_PER_SCREEN_X * fraction_dx * 2.0;
+        let mut dy_radians = DRAG_RADIANS_PER_SCREEN_Y * fraction_dy * 2.0;
+    
+        // change dx_radians and dy_radians as necessary to make sure it makes sense to user
+        // account for the fact that this application uses an LHS coord system
+        dx_radians *= -1.0;
+        dy_radians *= -1.0;
+
+        let dx_rotation_matrix = Quat::from_axis_angle(application_state.drag_state.init_UP, dx_radians);
+        let dy_rotation_matrix = Quat::from_axis_angle(Vec3::new(1.0,0.0,0.0),dy_radians);
+        
+        let rotation_matrix = dy_rotation_matrix * dx_rotation_matrix;
+        
+        application_state.RIGHT = rotation_matrix * application_state.drag_state.init_RIGHT;
+        application_state.UP = rotation_matrix * application_state.drag_state.init_UP;
+        application_state.FORWARD = rotation_matrix * application_state.drag_state.init_FORWARD;
     }
 
+    Ok(())
+}
+
+pub fn wheel(delta: i32, application_state: &mut ApplicationState) -> Result<(), CT3DError> {
+
+    let old_camera_z = application_state.camera_z;
+    let mut new_camera_z = old_camera_z + (delta.signum() as f32) * ZOOM_SPEED;
+    new_camera_z = new_camera_z.max(MIN_CAMERA_Z).min(MAX_CAMERA_Z);
+    application_state.camera_z = new_camera_z;
+    
     Ok(())
 }

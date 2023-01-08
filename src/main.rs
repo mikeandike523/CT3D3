@@ -12,6 +12,7 @@ mod types {
     pub mod rgb_image;
     pub mod ct3d_error;
     pub mod application_state;
+    pub mod volume;
 }
 
 mod application;
@@ -23,6 +24,11 @@ mod kernels{
 mod kernel_helpers {
     pub mod color;
     pub mod math;
+    pub mod raycasting;
+}
+
+mod content {
+    pub mod generate_initial_volume;
 }
 
 const SCREEN_WIDTH: u32 = 640;
@@ -91,6 +97,9 @@ fn main() {
                     ..
                 } => {
                     crate::application::mouse_move(x, y, &mut application_state).unwrap();
+                },
+                Event::MouseWheel {y, ..} => {
+                    crate::application::wheel(y, &mut application_state).unwrap();
                 }
                 _ => {}
             }

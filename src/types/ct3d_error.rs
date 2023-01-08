@@ -12,21 +12,27 @@ impl fmt::Display for CT3DError {
     }
 }
 
-impl Error for CT3DError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match &self.source {
-            Some(s)=>{
-                Some(s.as_ref())
-            },
-            None => None
-        }
-    }
-}
+// impl Error for CT3DError {
+//     fn source(&self) -> Option<&(dyn Error + 'static)> {
+//         match &self.source {
+//             Some(s)=>{
+//                 Some(s.as_ref())
+//             },
+//             None => None
+//         }
+//     }
+// }
 
 impl CT3DError {
     pub fn new(source:Option<Box<dyn Error + 'static>>) -> CT3DError {
         CT3DError {
             source: source
         }
+    }
+}
+
+impl<E: Error + 'static> From<E> for CT3DError {
+    fn from(e: E) -> Self {
+        Self::new(Some(Box::new(e)))
     }
 }

@@ -2,6 +2,7 @@ use ocl::{flags, Platform, Device, Context, Queue, Buffer, Program, Kernel};
 use glam::{Vec3};
 
 use crate::types::rgb_image::RGBImage;
+use crate::types::volume::Volume;
 
 pub struct DragState {
     pub dragging: bool,
@@ -20,6 +21,7 @@ pub struct OpenCLState {
     pub screen_dimensions_buffer: Option<Buffer<i32>>,
     pub output_buffer: Option<Buffer<f32>>,
     pub input_data_buffer: Option<Buffer<f32>>,
+    pub general_parameters_buffer: Option<Buffer<f32>>,
     pub axes_buffer: Option<Buffer<f32>>,
     pub program: Option<Program>,
     pub kernel: Option<Kernel>
@@ -33,7 +35,9 @@ pub struct ApplicationState {
     pub RIGHT: Vec3,
     pub UP: Vec3,
     pub FORWARD: Vec3,
-    pub drag_state: DragState
+    pub drag_state: DragState,
+    pub camera_z: f32,
+    pub volume: Option<Box<Volume>>
 }
 
 impl DragState {
@@ -59,6 +63,7 @@ impl OpenCLState {
             output_buffer: None,
             input_data_buffer: None,
             axes_buffer: None,
+            general_parameters_buffer: None,
             program: None,
             kernel: None
         }
@@ -75,7 +80,9 @@ impl ApplicationState {
             RIGHT: Vec3::new(1.0, 0.0, 0.0),
             UP: Vec3::new(0.0, 1.0, 0.0),
             FORWARD: Vec3::new(0.0, 0.0, 1.0),
-            drag_state: DragState::new()
+            drag_state: DragState::new(),
+            camera_z: -5.0,
+            volume: None
         }
     }
 }
