@@ -5,7 +5,9 @@ pub const RENDER: &str = r#"
     #define F 1.0
     #define FIXED_STEP_MARCH_ENTER_MAX_STEPS 32
     #define DOWNSAMPLING 1
-    #define NORMAL_SEARCH_RADIUS 3
+    #define NORMAL_SEARCH_RADIUS 1
+    #define DROPOFF_RATE 0.70
+    #define INITIAL_SCALE 1.05
 
 
     typedef struct VolumeData {
@@ -120,9 +122,7 @@ pub const RENDER: &str = r#"
                 for(int dz = -NORMAL_SEARCH_RADIUS; dz <= NORMAL_SEARCH_RADIUS;dz++){
                     float3 offs = towards_east((float)dx*cell_sizes.x) + towards_north((float)dz*cell_sizes.z) + towards_up((float)dy*cell_sizes.y);
                     float value = vd_query(vd, coord+offs);
-                    if(value < low_cutoff){
-                        total_normal += offs;
-                    }
+                    total_normal -= value * offs;   
                 }
             }
         }
@@ -282,23 +282,29 @@ pub const RENDER: &str = r#"
                     }
     
                     if(ipoint.present){
-                        float3 local_normal = (vd_get_normal(&vd, local_pt, LOW_CUTOFF));
-                        float3 world_normal = local_to_world_coords(local_normal, application_state);
-                        float grey = dot(world_normal, (float3)(0.0,0.0,-1.0));
-                        if(grey<0.0){
-                            grey = 0.0;
-                        }
-                        color = (float3)(grey, grey, grey);
+                        float3 world_pt = local_to_world_coords(ipoint.value,application_state);
+                        float grey = INITIAL_SCALE-DROPOFF_RATE*length(world_pt - (float3)(0.0,0.0,camera_z))/fabs(camera_z);
+                        float _u = fabs(ipoint.value.x/vd.radii.x);
+                        float _v = fabs(ipoint.value.y/vd.radii.y);
+                        float _w = fabs(ipoint.value.z/vd.radii.z);
+                        float a = 1.0 - 0.5 * _u - 0.5 * _v;
+                        float b = 1.0 - 0.5 * _v - 0.5 * _w;
+                        float c = 1.0 - 0.5 * _w - 0.5 * _u;
+                        float3 base_color =(float3)(
+                            a+_u,
+                            b+_v,
+                            c+_w
+                        );
+                        color = float3_scaled_by(base_color,grey);
                     }
 
                 }
 
-
             }else{
-                color=(float3)(0.0,0.0,1.0);
+               
             }
         }else{
-            // Do nothing
+
         }
 
         int tid = y * w + x;

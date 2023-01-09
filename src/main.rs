@@ -42,7 +42,7 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     // Create the window
-    let window = video_subsystem.window("My SDL2 Window", SCREEN_WIDTH, SCREEN_HEIGHT)
+    let window = video_subsystem.window("CT3D", SCREEN_WIDTH, SCREEN_HEIGHT)
         .position_centered()
         .build()
         .unwrap();
