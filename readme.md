@@ -2,9 +2,7 @@
 
 # CT3D
 
-Software for the intelligent visualization and measurment of anatomical CT data. 
-
-**Under Active Development**
+Software for the intelligent visualization and measurment of anatomical CT data. **Under Active Development**
 
 ![1673246466616](image/readme/1673246466616.png)
 
