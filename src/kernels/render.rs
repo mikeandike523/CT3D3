@@ -5,6 +5,8 @@ pub const RENDER: &str = r#"
     #define F 1.0
     #define FIXED_STEP_MARCH_ENTER_MAX_STEPS 32
     #define DOWNSAMPLING 1
+    #define NORMAL_SEARCH_RADIUS 3
+
 
     typedef struct VolumeData {
         int enabled;
@@ -35,7 +37,6 @@ pub const RENDER: &str = r#"
             // Since only one volume will be present, there is an implied "view" to `buffer` starting from position 8 and onward.
 
 
-
             radii.x = buffer[1];
             radii.y = buffer[2];
             radii.z = buffer[3];
@@ -45,9 +46,6 @@ pub const RENDER: &str = r#"
             res.x = (int)buffer[idx++];
             res.y = (int)buffer[idx++];
             res.z = (int)buffer[idx++];
-
-
-
 
         }
         data.radii = radii;
@@ -105,6 +103,34 @@ pub const RENDER: &str = r#"
         return min3(cell_size.x, cell_size.y, cell_size.z);
     }
 
+    float3 vd_get_normal(VolumeData * vd, float3 coord, float low_cutoff){
+
+        float3 radii = vd->radii;
+
+        float3 cell_sizes = (float3)(
+            (2.0*radii.x)/(float)vd->res.x,
+            (2.0*radii.y)/(float)vd->res.y,
+            (2.0*radii.z)/(float)vd->res.z
+        );
+
+        float3 total_normal = (float3)(0.0, 0.0, 0.0);
+
+        for(int dx = -NORMAL_SEARCH_RADIUS; dx <= NORMAL_SEARCH_RADIUS; dx++){
+            for(int dy = -NORMAL_SEARCH_RADIUS; dy <= NORMAL_SEARCH_RADIUS;dy++){
+                for(int dz = -NORMAL_SEARCH_RADIUS; dz <= NORMAL_SEARCH_RADIUS;dz++){
+                    float3 offs = towards_east((float)dx*cell_sizes.x) + towards_north((float)dz*cell_sizes.z) + towards_up((float)dy*cell_sizes.y);
+                    float value = vd_query(vd, coord+offs);
+                    if(value < low_cutoff){
+                        total_normal += offs;
+                    }
+                }
+            }
+        }
+
+        return safe_normalize(total_normal);
+
+    }
+
     typedef struct ApplicationState {
         VolumeData * vd;
         float3 RIGHT;
@@ -118,6 +144,10 @@ pub const RENDER: &str = r#"
         local_coords.y = dot(application_state.UP, world_coords);
         local_coords.z = dot(application_state.FORWARD, world_coords);
         return local_coords;
+    }
+
+    float3 local_to_world_coords(float3 local_coords, ApplicationState application_state){
+        return float3_scaled_by(application_state.RIGHT, local_coords.x) + float3_scaled_by(application_state.UP, local_coords.y) + float3_scaled_by(application_state.FORWARD, local_coords.z);
     }
 
     float volume_boundary_sdf(float3 world_coords, ApplicationState application_state){
@@ -238,21 +268,26 @@ pub const RENDER: &str = r#"
 
                     // Step 2: step until point exits the volume
 
-                    float total = 0.0;
-                    float denom = 0.0;
+                    OptFloat3 ipoint = OptFloat3_miss();
     
                     while(vd_float3_is_in_bounds(&vd, local_pt)&&(length(local_pt)<max_distance))
                     {
                         float value = vd_query(&vd, local_pt);
-                        if(value > LOW_CUTOFF){
-                            total += value;
-                            denom += 1.0;
+                        if(value >= LOW_CUTOFF){
+                            
+                            ipoint = OptFloat3_hit(local_pt);
+                            break;
                         }
                         local_pt += float3_scaled_by(local_dir,fixed_march_step);
                     }
     
-                    if(denom > 0.0){
-                        float grey = total / denom;
+                    if(ipoint.present){
+                        float3 local_normal = (vd_get_normal(&vd, local_pt, LOW_CUTOFF));
+                        float3 world_normal = local_to_world_coords(local_normal, application_state);
+                        float grey = dot(world_normal, (float3)(0.0,0.0,-1.0));
+                        if(grey<0.0){
+                            grey = 0.0;
+                        }
                         color = (float3)(grey, grey, grey);
                     }
 

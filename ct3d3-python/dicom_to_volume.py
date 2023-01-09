@@ -46,9 +46,7 @@ class DicomFile:
         elif direction_cosines == (1,0,0,0,1,0):
             return AXIAL
 
-        # make axial default because why not
         return AXIAL
-
     
     def __init__(self,path):
         dicom=dcmread(path)
@@ -69,8 +67,6 @@ files=natsorted(list(os.listdir(DICOM_DIR)))
 dicom_file=DicomFile(f"{DICOM_DIR}\{files[0]}")
 w=dicom_file.w
 h=dicom_file.h
-
-print(dicom_file.plane)
 
 d=len(files)
 
@@ -99,11 +95,9 @@ dcos = tuple(map(int,dicom_file.dicom[0x0020,0x0037].value))
 
 cosines = {
     "axial":AXIAL_COSINES,
-    "sagittal":SAGITAL_COSINES,
+    "sagital":SAGITAL_COSINES,
     "coronal":CORONAL_COSINES
 }[dicom_file.plane]
-
-print(dcos, cosines)
 
 for i in [0,1,2]:
     if dcos[i] != 0 and cosines[i] != 0 and dcos[i] != cosines[i]:
@@ -135,54 +129,16 @@ match dicom_file.plane:
         res = res[[0,1,2]]
         pass
 
-# Because +y on an image is generall "downward" spatially, need to flip the +z (dicom) = +y (my application) axis for sagital and coronal cuts
-# The transposition has already been done ( to fit it into my application) so just flip the y axis
 volume = np.flip(volume, axis=1)
-
-# @Todo: add code to find traversal direction metadata to flip/not flip as necessary in the case of axial cuts
-
-#for convenience (such that the view miomcs that of someone looking at the patient), rotate the patient 180 degrees on the x-z plane.
-# This is equivalent 
-
-volume = np.rot90(volume,k=2,axes=(0,2))
-
-# process the volume to remove background
-
-# brightness_data = np.ravel(volume)
-
-# variance_data = []
-
-# for i in range(1,129):
-#     split_point = i/128
-#     left = brightness_data[brightness_data < split_point]
-#     right = brightness_data[brightness_data >= split_point]
-
-#     variance_data.append(
-#         split_point  * np.var(left) + 
-#         (1.0-split_point) * np.var(right)
-#     )
-
-#     print(split_point, variance_data[-1])
-
-# threshold = (np.argmin(variance_data)+1)/128
-
-# print(threshold)
-
-# volume[volume < threshold] = 0
-
-# volume = rescale_array(volume)
-
-# volume = rescale_array(volume)
 
 with open("temp/initial_volume.txt","wb") as fl:
 
     fl.write((" ".join([str(ax) for ax in axs])).encode('ascii')+b"\n")
 
     fl.write((" ".join([str(r) for r in res]).encode('ascii')+b"\n"))
-    print("writing data...")
+    print("Writing data to file...")
     volume = volume.astype(dtype=np.float32)
     for z in range(res[2]):
-        print(z)
         for y in range(res[1]):
             for x in range(res[0]):
                 fl.write(struct.pack("<f",volume[x,y,z]))

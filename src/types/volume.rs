@@ -139,8 +139,6 @@ impl Volume {
 
         result.data = data;
 
-        println!("{}\n{}",result.radii, result.res);
-
         Ok(result)
     }
 

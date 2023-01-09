@@ -17,7 +17,7 @@ const DRAG_RADIANS_PER_SCREEN_Y: f32=1.0*2.0*(std::f64::consts::PI as f32); // O
 const MIN_CAMERA_Z: f32 = -10.0;
 const MAX_CAMERA_Z: f32 = -0.75;
 const ZOOM_SPEED: f32 = 0.25;
-const LOCAL_SIZE: usize = 64;
+const LOCAL_SIZE: usize = 512;
 const LOW_CUTOFF_CHANGE_SPEED: f32 = 0.010;
 
 pub fn init(application_state: &mut ApplicationState ) -> Result<(), CT3DError>{
@@ -136,6 +136,14 @@ pub fn main(application_state: &mut ApplicationState, delta_time: Duration) -> R
         application_state.low_cutoff = (application_state.low_cutoff + LOW_CUTOFF_CHANGE_SPEED).min(1.0f32);
     }
 
+    if *application_state.keymap.get(&sdl2::keyboard::Scancode::Q) {
+        application_state.low_cutoff = (application_state.low_cutoff - LOW_CUTOFF_CHANGE_SPEED/4.0).max(0.0f32);
+    }
+
+    if *application_state.keymap.get(&sdl2::keyboard::Scancode::E) {
+        application_state.low_cutoff = (application_state.low_cutoff + LOW_CUTOFF_CHANGE_SPEED/4.0).min(1.0f32);
+    }
+
     let screen_dimensions_vec = vec![application_state.width as i32, application_state.height as i32];
 
     application_state.opencl_state.screen_dimensions_buffer.as_mut().unwrap().write(&screen_dimensions_vec).enq().unwrap();
@@ -240,15 +248,19 @@ pub fn drop_file(filename: String, application_state: &mut ApplicationState) -> 
 
     println!("{}", filename);
 
-    let capture_result = Exec::cmd("python").arg("ct3d3-python/dicom_to_volume.py").arg("--dropped-file").arg(filename).stdout(Redirection::Pipe).stderr(Redirection::Pipe).capture();
+    let capture_result = Exec::cmd("python").arg("ct3d3-python/dicom_to_volume.py").arg("--dropped-file").arg(filename).capture();
 
     match capture_result {
-        Ok(_) =>{
-            println!("Python subprocess run successfully.");
-            change_volume(application_state, Box::new(crate::content::generate_initial_volume::generate_initial_volume()));
+        Ok(captured_data) =>{
+            if(subprocess::ExitStatus::success(captured_data.exit_status)){
+                println!("Python subprocess run successfully.");
+                change_volume(application_state, Box::new(crate::content::generate_initial_volume::generate_initial_volume()));
+            }else{
+                println!("Python subprocess exited with non-zero code.");
+            }
         }
         Err(e)=>{
-            println!("Python subprocess failed.");
+            println!("Python could not be started or run successfully.");
             println!("{}", e);
         }
     }
