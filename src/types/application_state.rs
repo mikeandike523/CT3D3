@@ -1,5 +1,6 @@
 use ocl::{flags, Platform, Device, Context, Queue, Buffer, Program, Kernel};
 use glam::{Vec3};
+use defaultdict::DefaultHashMap;
 
 use crate::types::rgb_image::RGBImage;
 use crate::types::volume::Volume;
@@ -37,7 +38,9 @@ pub struct ApplicationState {
     pub FORWARD: Vec3,
     pub drag_state: DragState,
     pub camera_z: f32,
-    pub volume: Option<Box<Volume>>
+    pub low_cutoff: f32,
+    pub volume: Option<Box<Volume>>,
+    pub keymap: DefaultHashMap<sdl2::keyboard::Scancode,bool>
 }
 
 impl DragState {
@@ -82,7 +85,9 @@ impl ApplicationState {
             FORWARD: Vec3::new(0.0, 0.0, 1.0),
             drag_state: DragState::new(),
             camera_z: -5.0,
-            volume: None
+            low_cutoff: 0.0,
+            volume: None,
+            keymap:  DefaultHashMap::<sdl2::keyboard::Scancode,bool>::new()
         }
     }
 }

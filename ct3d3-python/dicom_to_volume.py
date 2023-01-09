@@ -6,8 +6,14 @@ from pydicom import dcmread
 import numpy as np
 import os
 import struct
+import argparse
+from natsort import natsorted
 
-DICOM_DIR = "D:\\OneDriveRoot\\OneDrive\\TCIA_DICOM_Files\\manifest-1672679240107\\COVID-19-AR\COVID-19-AR-16424111\\02-08-2012-NA-CT CHEST ABDOMEN PELVIS W-49310\\80761.000000-MPR ART THINS Coronal-25574"
+parser = argparse.ArgumentParser()
+parser.add_argument("--dropped-file")
+args = parser.parse_args()
+
+DICOM_DIR = os.path.dirname(args.dropped_file)
 
 AXIAL = "axial"
 SAGITAL = "sagital"
@@ -17,12 +23,11 @@ AXIAL_COSINES = (1,0,0,0,1,0)
 SAGITAL_COSINES =  (0,1,0,0,0,-1)
 CORONAL_COSINES = (1,0,0,0,0,-1)
 
-
 def rescale_array(array,minimum_range=0.000010):
     min_val=np.amin(array)
     max_val=np.amax(array)
     if max_val-min_val >= minimum_range:
-        return (array-min_val)/(max_val-min_val)
+        return (array.copy()-min_val)/(max_val-min_val)
     return None
 
 class DicomFile:
@@ -60,7 +65,7 @@ class DicomFile:
         self.shape=self.pixels.shape
         self.hounsfield=float(dicom[0x0028,0x1053].value)*np.float64(dicom.pixel_array)+float(dicom[0x0028,0x1052].value)
 
-files=list(os.listdir(DICOM_DIR))
+files=natsorted(list(os.listdir(DICOM_DIR)))
 dicom_file=DicomFile(f"{DICOM_DIR}\{files[0]}")
 w=dicom_file.w
 h=dicom_file.h
@@ -141,6 +146,34 @@ volume = np.flip(volume, axis=1)
 
 volume = np.rot90(volume,k=2,axes=(0,2))
 
+# process the volume to remove background
+
+# brightness_data = np.ravel(volume)
+
+# variance_data = []
+
+# for i in range(1,129):
+#     split_point = i/128
+#     left = brightness_data[brightness_data < split_point]
+#     right = brightness_data[brightness_data >= split_point]
+
+#     variance_data.append(
+#         split_point  * np.var(left) + 
+#         (1.0-split_point) * np.var(right)
+#     )
+
+#     print(split_point, variance_data[-1])
+
+# threshold = (np.argmin(variance_data)+1)/128
+
+# print(threshold)
+
+# volume[volume < threshold] = 0
+
+# volume = rescale_array(volume)
+
+# volume = rescale_array(volume)
+
 with open("temp/initial_volume.txt","wb") as fl:
 
     fl.write((" ".join([str(ax) for ax in axs])).encode('ascii')+b"\n")
@@ -153,9 +186,3 @@ with open("temp/initial_volume.txt","wb") as fl:
         for y in range(res[1]):
             for x in range(res[0]):
                 fl.write(struct.pack("<f",volume[x,y,z]))
-
-
-
-
-
-

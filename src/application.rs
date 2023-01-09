@@ -5,18 +5,20 @@ use std::fs::File;
 
 use ocl::{flags, Platform, Device, Context, Queue, CommandQueueProperties, Buffer, Program, Kernel, SpatialDims};
 use glam::{Vec3, Quat};
+use subprocess::{Exec, Redirection};
+
 use crate::types::ct3d_error::CT3DError;
 use crate::types::application_state::ApplicationState;
 use crate::types::volume::Volume;
 
-const INPUT_DATA_BUFFER_SIZE_BYTES: u32 = 1024*1024*512; // 0.5 GB of Storage
+const INPUT_DATA_BUFFER_SIZE_BYTES: u32 = 1024*1024*1024; // 1 GB of Storage
 const DRAG_RADIANS_PER_SCREEN_X: f32=1.0*2.0*(std::f64::consts::PI as f32); // One rotation per half screen
 const DRAG_RADIANS_PER_SCREEN_Y: f32=1.0*2.0*(std::f64::consts::PI as f32); // One rotation per half screen
 const MIN_CAMERA_Z: f32 = -10.0;
 const MAX_CAMERA_Z: f32 = -0.75;
 const ZOOM_SPEED: f32 = 0.25;
 const LOCAL_SIZE: usize = 64;
-
+const LOW_CUTOFF_CHANGE_SPEED: f32 = 0.010;
 
 pub fn init(application_state: &mut ApplicationState ) -> Result<(), CT3DError>{
     let platform = Platform::default();
@@ -72,7 +74,7 @@ pub fn init(application_state: &mut ApplicationState ) -> Result<(), CT3DError>{
     application_state.opencl_state.general_parameters_buffer = Some(Buffer::builder()
     .queue(application_state.opencl_state.queue.as_ref().unwrap().clone())
     .flags(ocl::core::MEM_READ_ONLY)
-    .len(1) // Remember to update if new parameters are added
+    .len(2) // Remember to update if new parameters are added
     .build()
     .unwrap()
     );
@@ -126,11 +128,19 @@ pub fn change_volume(application_state: &mut ApplicationState, volume: Box<Volum
 
 pub fn main(application_state: &mut ApplicationState, delta_time: Duration) -> Result<(), CT3DError>{
 
+    if *application_state.keymap.get(&sdl2::keyboard::Scancode::A) {
+        application_state.low_cutoff = (application_state.low_cutoff - LOW_CUTOFF_CHANGE_SPEED).max(0.0f32);
+    }
+
+    if *application_state.keymap.get(&sdl2::keyboard::Scancode::D) {
+        application_state.low_cutoff = (application_state.low_cutoff + LOW_CUTOFF_CHANGE_SPEED).min(1.0f32);
+    }
+
     let screen_dimensions_vec = vec![application_state.width as i32, application_state.height as i32];
 
     application_state.opencl_state.screen_dimensions_buffer.as_mut().unwrap().write(&screen_dimensions_vec).enq().unwrap();
 
-    let general_parameters_vec =vec![application_state.camera_z];
+    let general_parameters_vec =vec![application_state.camera_z, application_state.low_cutoff];
 
     application_state.opencl_state.general_parameters_buffer.as_mut().unwrap().write(&general_parameters_vec).enq().unwrap();
 
@@ -224,4 +234,44 @@ pub fn wheel(delta: i32, application_state: &mut ApplicationState) -> Result<(),
     application_state.camera_z = new_camera_z;
     
     Ok(())
+}
+
+pub fn drop_file(filename: String, application_state: &mut ApplicationState) -> Result<(), CT3DError> {
+
+    println!("{}", filename);
+
+    let capture_result = Exec::cmd("python").arg("ct3d3-python/dicom_to_volume.py").arg("--dropped-file").arg(filename).stdout(Redirection::Pipe).stderr(Redirection::Pipe).capture();
+
+    match capture_result {
+        Ok(_) =>{
+            println!("Python subprocess run successfully.");
+            change_volume(application_state, Box::new(crate::content::generate_initial_volume::generate_initial_volume()));
+        }
+        Err(e)=>{
+            println!("Python subprocess failed.");
+            println!("{}", e);
+        }
+    }
+
+    Ok(())
+
+}
+
+pub fn key_down(scancode: Option<sdl2::keyboard::Scancode>, application_state: &mut ApplicationState) -> Result<(), CT3DError> {
+
+    if let Some(scancode) = scancode {
+        application_state.keymap.insert(scancode, true);
+    };
+
+    Ok(())
+
+}
+pub fn key_up(scancode: Option<sdl2::keyboard::Scancode>, application_state: &mut ApplicationState) -> Result<(), CT3DError> {
+
+    if let Some(scancode) = scancode {
+        application_state.keymap.insert(scancode, false);
+    };
+
+    Ok(())
+
 }

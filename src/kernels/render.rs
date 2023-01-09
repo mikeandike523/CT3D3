@@ -196,9 +196,11 @@ pub const RENDER: &str = r#"
 
         u = u * (float)w / (float)h; 
 
-        float3 color = (float3)(u,v,0.0);
-
         float camera_z = general_parameters_buffer[0];
+
+        float LOW_CUTOFF = general_parameters_buffer[1];
+
+        float3 color = ((float)x/(float)w >= LOW_CUTOFF) ? ((float3)(1.0,1.0,1.0)) : ((float3)(0.0,0.0,0.0));
 
         float3 ro = (float3)(0.0,0.0,camera_z);
         float3 rd = normalize((float3)(u,v,F));
@@ -242,7 +244,7 @@ pub const RENDER: &str = r#"
                     while(vd_float3_is_in_bounds(&vd, local_pt)&&(length(local_pt)<max_distance))
                     {
                         float value = vd_query(&vd, local_pt);
-                        if(value > 0.0){
+                        if(value > LOW_CUTOFF){
                             total += value;
                             denom += 1.0;
                         }

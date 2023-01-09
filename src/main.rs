@@ -1,5 +1,7 @@
 use std::time::{Duration, Instant};
 
+use subprocess::{Exec, Redirection};
+
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::event::Event;
@@ -100,7 +102,16 @@ fn main() {
                 },
                 Event::MouseWheel {y, ..} => {
                     crate::application::wheel(y, &mut application_state).unwrap();
-                }
+                },
+                Event::DropFile {filename, ..} =>{
+                    crate::application::drop_file(filename, &mut application_state).unwrap();
+                },
+                Event::KeyDown { timestamp, window_id, keycode, scancode, keymod, repeat } => {
+                    crate::application::key_down(scancode, &mut application_state).unwrap();
+                },
+                Event::KeyUp { timestamp, window_id, keycode, scancode, keymod, repeat } => {
+                    crate::application::key_up(scancode, &mut application_state).unwrap();
+                },
                 _ => {}
             }
         }
