@@ -1,4 +1,3 @@
-pub const MATH: &str = r#"
 
 // float3 operations
 float3 float3_scaled_by(float3 f3, float s){
@@ -51,4 +50,3 @@ float3 safe_normalize(float3 a){
 }
 
 
-"#;

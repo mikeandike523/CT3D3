@@ -17,17 +17,11 @@ mod types {
     pub mod volume;
 }
 
+mod tools {
+    pub mod resources;
+}
+
 mod application;
-
-mod kernels{
-    pub mod render;
-}
-
-mod kernel_helpers {
-    pub mod color;
-    pub mod math;
-    pub mod raycasting;
-}
 
 mod content {
     pub mod generate_initial_volume;

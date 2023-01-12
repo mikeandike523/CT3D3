@@ -1,5 +1,3 @@
-pub const RAYCASTING: &str = r#"
-
 #define RAYCASTING_DENOM_EPSILON 1.0e-6
 
 #define FLOAT3_EAST ((float3)(1.0,0.0,0.0))
@@ -108,6 +106,3 @@ OptFloat3 ray_box_intersection(float3 ro, float3 rd, float3 O, float3 radii){
     return result;
 
 }
-
-
-"#;

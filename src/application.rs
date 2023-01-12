@@ -10,6 +10,7 @@ use subprocess::{Exec, Redirection};
 use crate::types::ct3d_error::CT3DError;
 use crate::types::application_state::ApplicationState;
 use crate::types::volume::Volume;
+use crate::tools::resources::read_resource_file_as_text;
 
 const INPUT_DATA_BUFFER_SIZE_BYTES: u32 = 1024*1024*1024; // 1 GB of Storage
 const DRAG_RADIANS_PER_SCREEN_X: f32=1.0*2.0*(std::f64::consts::PI as f32); // One rotation per half screen
@@ -87,11 +88,15 @@ pub fn init(application_state: &mut ApplicationState ) -> Result<(), CT3DError>{
     .unwrap()
     );
 
-    let source_code =
-    crate::kernel_helpers::color::COLOR.to_owned() +
-    &crate::kernel_helpers::math::MATH.to_owned() +
-    &crate::kernel_helpers::raycasting::RAYCASTING.to_owned() +
-    &crate::kernels::render::RENDER.to_owned();
+    // let source_code =
+    // crate::kernel_helpers::color::COLOR.to_owned() +
+    // &crate::kernel_helpers::math::MATH.to_owned() +
+    // &crate::kernel_helpers::raycasting::RAYCASTING.to_owned() +
+    // &crate::kernels::render::RENDER.to_owned();
+
+    let source_code = read_resource_file_as_text("kernel_helpers/math.cl".to_owned())? +
+    &read_resource_file_as_text("kernel_helpers/raycasting.cl".to_owned())? +
+    &read_resource_file_as_text("kernels/render.cl".to_owned())?;
 
     File::create("debug/kernel_source.cl").unwrap().write(source_code.as_bytes()).unwrap();
 
